@@ -10,7 +10,7 @@ import {
   DragOverlay
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { Plus, Users } from 'lucide-react';
+import { Plus, Users, Pencil, Trash2, X } from 'lucide-react';
 import { api } from '../api';
 import TaskColumn from '../components/TaskColumn';
 import TaskCard from '../components/TaskCard';
@@ -25,10 +25,16 @@ const ProjectView = () => {
   // Modals state
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
+  const [isEditProjectModalOpen, setIsEditProjectModalOpen] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null); // for view/edit/delete
+  const [isEditingTask, setIsEditingTask] = useState(false);
   
   // Form states
   const [newTask, setNewTask] = useState({ title: '', description: '', priority: 'Medium', status: 'Todo' });
+  const [editTask, setEditTask] = useState({ title: '', description: '', priority: 'Medium', status: 'Todo' });
   const [newMemberEmail, setNewMemberEmail] = useState('');
+  const [editProjectTitle, setEditProjectTitle] = useState('');
+  const [editProjectDesc, setEditProjectDesc] = useState('');
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -107,6 +113,40 @@ const ProjectView = () => {
     }
   };
 
+  const handleTaskClick = (task) => {
+    setSelectedTask(task);
+    setEditTask({
+      title: task.title,
+      description: task.description || '',
+      priority: task.priority,
+      status: task.status,
+    });
+    setIsEditingTask(false);
+  };
+
+  const handleUpdateTask = async (e) => {
+    e.preventDefault();
+    try {
+      await api.tasks.update(id, selectedTask._id, editTask);
+      setSelectedTask(null);
+      setIsEditingTask(false);
+      fetchData();
+    } catch (error) {
+      console.error('Failed to update task', error);
+    }
+  };
+
+  const handleDeleteTask = async () => {
+    if (!window.confirm('Delete this task? This cannot be undone.')) return;
+    try {
+      await api.tasks.delete(id, selectedTask._id);
+      setSelectedTask(null);
+      fetchData();
+    } catch (error) {
+      console.error('Failed to delete task', error);
+    }
+  };
+
   const handleAddMember = async (e) => {
     e.preventDefault();
     try {
@@ -119,6 +159,23 @@ const ProjectView = () => {
     }
   };
 
+  const handleEditProject = async (e) => {
+    e.preventDefault();
+    try {
+      await api.projects.update(id, { title: editProjectTitle, description: editProjectDesc });
+      setIsEditProjectModalOpen(false);
+      fetchData();
+    } catch (error) {
+      console.error('Failed to update project', error);
+    }
+  };
+
+  const openEditProjectModal = () => {
+    setEditProjectTitle(project.title);
+    setEditProjectDesc(project.description || '');
+    setIsEditProjectModalOpen(true);
+  };
+
   if (loading) return <div className="flex justify-center items-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div></div>;
   if (!project) return <div>Project not found</div>;
 
@@ -127,9 +184,18 @@ const ProjectView = () => {
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{project.title}</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">{project.description}</p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{project.title}</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">{project.description}</p>
+          </div>
+          <button
+            onClick={openEditProjectModal}
+            className="p-2 rounded-md text-gray-400 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            title="Edit project"
+          >
+            <Pencil size={18} />
+          </button>
         </div>
         <div className="flex space-x-3">
           <button
@@ -163,7 +229,7 @@ const ProjectView = () => {
                 id={status}
                 title={status}
                 tasks={tasks.filter(t => t.status === status)}
-                onTaskClick={(task) => console.log('Clicked', task)}
+                onTaskClick={handleTaskClick}
               />
             ))}
           </div>
@@ -173,7 +239,7 @@ const ProjectView = () => {
         </DndContext>
       </div>
 
-      {/* Task Modal */}
+      {/* Create Task Modal */}
       {isTaskModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex justify-center items-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 p-6 rounded-xl w-full max-w-md shadow-xl">
@@ -230,6 +296,121 @@ const ProjectView = () => {
         </div>
       )}
 
+      {/* Task Detail / Edit / Delete Modal */}
+      {selectedTask && (
+        <div className="fixed inset-0 bg-black/50 flex justify-center items-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl w-full max-w-md shadow-xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                {isEditingTask ? 'Edit Task' : 'Task Details'}
+              </h2>
+              <button
+                onClick={() => { setSelectedTask(null); setIsEditingTask(false); }}
+                className="p-1 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {isEditingTask ? (
+              <form onSubmit={handleUpdateTask}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
+                    <input
+                      type="text" required
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      value={editTask.title} onChange={e => setEditTask({...editTask, title: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                    <textarea
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      rows="3"
+                      value={editTask.description} onChange={e => setEditTask({...editTask, description: e.target.value})}
+                    ></textarea>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Priority</label>
+                      <select
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        value={editTask.priority} onChange={e => setEditTask({...editTask, priority: e.target.value})}
+                      >
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                      <select
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        value={editTask.status} onChange={e => setEditTask({...editTask, status: e.target.value})}
+                      >
+                        <option value="Todo">Todo</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Done">Done</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex justify-end space-x-3 mt-6">
+                  <button type="button" onClick={() => setIsEditingTask(false)} className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">Cancel</button>
+                  <button type="submit" className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors">Save Changes</button>
+                </div>
+              </form>
+            ) : (
+              <div>
+                <div className="space-y-3 mb-6">
+                  <div>
+                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Title</span>
+                    <p className="text-gray-900 dark:text-white font-medium">{selectedTask.title}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Description</span>
+                    <p className="text-gray-700 dark:text-gray-300">{selectedTask.description || 'No description'}</p>
+                  </div>
+                  <div className="flex gap-6">
+                    <div>
+                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Priority</span>
+                      <p className="text-gray-900 dark:text-white">{selectedTask.priority}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Status</span>
+                      <p className="text-gray-900 dark:text-white">{selectedTask.status}</p>
+                    </div>
+                  </div>
+                  {selectedTask.assignee && (
+                    <div>
+                      <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Assignee</span>
+                      <p className="text-gray-900 dark:text-white">{selectedTask.assignee.name}</p>
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-between">
+                  <button
+                    onClick={handleDeleteTask}
+                    className="flex items-center space-x-1 px-4 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                  >
+                    <Trash2 size={16} />
+                    <span>Delete</span>
+                  </button>
+                  <button
+                    onClick={() => setIsEditingTask(true)}
+                    className="flex items-center space-x-1 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors"
+                  >
+                    <Pencil size={16} />
+                    <span>Edit</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Member Modal */}
       {isMemberModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex justify-center items-center p-4 z-50">
@@ -247,6 +428,37 @@ const ProjectView = () => {
               <div className="flex justify-end space-x-3">
                 <button type="button" onClick={() => setIsMemberModalOpen(false)} className="px-4 py-2 text-gray-600 dark:text-gray-300">Cancel</button>
                 <button type="submit" className="px-4 py-2 bg-primary-600 text-white rounded-lg">Add Member</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Project Modal */}
+      {isEditProjectModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex justify-center items-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl w-full max-w-md shadow-xl">
+            <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Edit Project</h2>
+            <form onSubmit={handleEditProject}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
+                <input
+                  type="text" required
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  value={editProjectTitle} onChange={e => setEditProjectTitle(e.target.value)}
+                />
+              </div>
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+                <textarea
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  rows="3"
+                  value={editProjectDesc} onChange={e => setEditProjectDesc(e.target.value)}
+                ></textarea>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button type="button" onClick={() => setIsEditProjectModalOpen(false)} className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors">Save Changes</button>
               </div>
             </form>
           </div>

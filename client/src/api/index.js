@@ -28,11 +28,14 @@ export const api = {
     getAll: () => axiosInstance.get('/projects'),
     getById: (id) => axiosInstance.get(`/projects/${id}`),
     create: (data) => axiosInstance.post('/projects', data),
+    update: (id, data) => axiosInstance.put(`/projects/${id}`, data),
+    delete: (id) => axiosInstance.delete(`/projects/${id}`),
     addMember: (id, email) => axiosInstance.post(`/projects/${id}/members`, { email }),
   },
   tasks: {
     getAll: (projectId) => axiosInstance.get(`/projects/${projectId}/tasks`),
     create: (projectId, data) => axiosInstance.post(`/projects/${projectId}/tasks`, data),
+    update: (projectId, taskId, data) => axiosInstance.put(`/projects/${projectId}/tasks/${taskId}`, data),
     updateStatus: (projectId, taskId, status) => axiosInstance.patch(`/projects/${projectId}/tasks/${taskId}/status`, { status }),
     delete: (projectId, taskId) => axiosInstance.delete(`/projects/${projectId}/tasks/${taskId}`),
   }
