@@ -1,15 +1,10 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import axios from 'axios';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import ProjectView from './pages/ProjectView';
 import Navbar from './components/Navbar';
-
-// Set up Axios default config (CORS and Base URL)
-axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
-axios.defaults.withCredentials = false; // Set to true if using cookies
 
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem('token');
